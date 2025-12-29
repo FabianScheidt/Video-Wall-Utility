@@ -4,7 +4,6 @@ import Foundation
 class StateControllerMock: AppState, AbstractStateController {
     private var cancellables = Set<AnyCancellable>()
     
-    // Todo: Replace with actual implementation
     override init() {
         super.init()
         $input.changes(of: \.source)

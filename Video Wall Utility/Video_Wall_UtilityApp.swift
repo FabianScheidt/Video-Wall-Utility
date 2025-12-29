@@ -11,7 +11,7 @@ import SwiftUI
 struct Video_Wall_UtilityApp: App {
     var body: some Scene {
         WindowGroup {
-            MockupView(state: StateControllerMock())
+            ContentView(state: StateController())
         }
         .windowStyle(.hiddenTitleBar)
     }
