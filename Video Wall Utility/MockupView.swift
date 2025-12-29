@@ -1,148 +1,106 @@
 import SwiftUI
+internal import Combine
+
+
+class MockupViewState: AppState {
+    private var cancellables = Set<AnyCancellable>()
+    
+    // Todo: Replace with actual implementation
+    override init() {
+        super.init()
+        $input.changes(of: \.source)
+            .sink { old, new in print("Source changed: \(old) → \(new)") }
+            .store(in: &cancellables)
+
+        $input.changes(of: \.edidUsbc)
+            .sink { old, new in print("EDID USB-C changed: \(old) → \(new)") }
+            .store(in: &cancellables)
+
+        $input.changes(of: \.edidHdmi)
+            .sink { old, new in print("EDID HDMI changed: \(old) → \(new)") }
+            .store(in: &cancellables)
+        
+        $system.changes(of: \.power)
+            .sink { old, new in print("Power changed: \(old) → \(new)") }
+            .store(in: &cancellables)
+    }
+    
+    func fetchDevices() {
+        self.device.devices = [
+            "/dev/tty.usbserial-FTELA902",
+            "/dev/tty.debug-console",
+        ]
+        self.device.device = device.devices[0]
+    }
+    
+    func connect() async {
+        self.device.status = .loading
+        try? await Task.sleep(nanoseconds: 1_000_000_000)
+        self.device.status = .connected
+        try? await Task.sleep(nanoseconds: 200_000_000)
+        self.device.firmwareVersion = "1.0.4"
+        try? await Task.sleep(nanoseconds: 200_000_000)
+        self.input.source = .usbc
+        try? await Task.sleep(nanoseconds: 200_000_000)
+        self.input.edidUsbc = .video4k60audio20
+        try? await Task.sleep(nanoseconds: 200_000_000)
+        self.input.edidHdmi = .video4k60audio20
+        try? await Task.sleep(nanoseconds: 200_000_000)
+        self.system.power = true
+    }
+    
+    func disconnect() async {
+        self.device.status = .disconnected
+        self.device.firmwareVersion = nil
+        self.input = AppInputState()
+        self.system = AppSystemState()
+    }
+    
+    func refresh() async {
+        await disconnect()
+        await connect()
+    }
+    
+    func reboot() async {
+        
+    }
+    
+    func factoryReset() async {
+        
+    }
+}
+
 
 struct MockupView: View {
-    @State private var bezelh = 0.0
-    @State private var bezelv = 0.0
+    @StateObject private var state = MockupViewState()
     
     var body: some View {
         VStack(spacing: 0) {
-            Group {
-                HStack {
-                    VStack(alignment: .leading) {
-                        HStack {
-                            Picker("Device", selection: .constant(1)) {
-                                Text("/dev/tty.usbserial-FTELA902").tag(1)
-                                Text("/dev/tty.debug-console").tag(2)
-                            }
-                            Button("Disconnect") {}
-                        }
-                        Text("Connected, Firmware Version: 1.0.4").foregroundColor(.secondary)
-                    }.padding(.top, 24)
-                    Spacer()
-                    Button {} label: {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 14, weight: .semibold))
-                            .labelStyle(.iconOnly)
-                            .frame(width: 32, height: 32)
-                    }.clipShape(Circle())
-                }.padding()
-            }.background(.thinMaterial)
+            DeviceView(
+                deviceState: $state.device,
+                connect: { Task { await state.connect() } },
+                disconnect: { Task { await state.disconnect() } },
+                refresh: { Task { await state.refresh() } }
+            ).padding().background(.thinMaterial)
             
             Divider()
             
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 16) {
-                    formGroup("Input", icon: "rectangle.connected.to.line.below") {
-                        Picker(selection: .constant(1), label: formLabel("Source")) {
-                            Text("USB-C").tag(1)
-                            Text("HDMI").tag(2)
-                        }
-                        Picker(selection: .constant(1), label: formLabel("EDID USB-C")) {
-                            Text("4k60, 2.0ch").tag(1)
-                            Text("4k60, 5.1ch").tag(2)
-                            Text("4k30, 2.0ch").tag(3)
-                            Text("4k30, 5.1ch").tag(4)
-                            Text("1080p, 2.0ch").tag(5)
-                            Text("1080p, 5.1ch").tag(6)
-                        }
-                        Picker(selection: .constant(1), label: formLabel("EDID HDMI")) {
-                            Text("4k60, 2.0ch").tag(1)
-                            Text("4k60, 5.1ch").tag(2)
-                            Text("4k30, 2.0ch").tag(3)
-                            Text("4k30, 5.1ch").tag(4)
-                            Text("1080p, 2.0ch").tag(5)
-                            Text("1080p, 5.1ch").tag(6)
-                        }
-                    }
-                    formGroup("System", icon: "gearshape") {
-                        Toggle(isOn: .constant(true)) {
-                            Text("Power")
-                        }
-                        Divider().padding(.vertical, 6)
-                        HStack {
-                            Button("Reboot") {}
-                            Spacer()
-                            Button("Factory Reset") {}.tint(.red)
-                        }
-                    }
+                    InputView(inputState: $state.input)
+                    SystemView(
+                        systemState: $state.system,
+                        reboot: { Task { await state.reboot() } },
+                        factoryReset: { Task { await state.factoryReset() } },
+                    )
                 }
                 VStack {
-                    formGroup("Output", icon: "display.2") {
-                        Picker(selection: .constant(1), label: formLabel("Mode")) {
-                            Text("1x1").tag(1)
-                            Text("2x1").tag(2)
-                            Text("3x1").tag(3)
-                            Text("4x1").tag(4)
-                            Text("1x2").tag(5)
-                            Text("1x3").tag(6)
-                            Text("1x4").tag(7)
-                            Text("2x2").tag(8)
-                        }
-                        Picker(selection: .constant(2), label: formLabel("Resolution")) {
-                            Text("1280x720p60").tag(1)
-                            Text("1920x1080p60").tag(2)
-                            Text("3840x2160p30").tag(3)
-                            Text("1024x768@60").tag(4)
-                        }
-                        Slider(value: $bezelh, in: 0...10, step: 1) {
-                            formLabel("Bezel H")
-                        } minimumValueLabel: {
-                            Text("0")
-                        } maximumValueLabel: {
-                            Text("10")
-                        }.frame(maxWidth: 250)
-                        Slider(value: $bezelv, in: 0...10, step: 1) {
-                            formLabel("Bezel V")
-                        } minimumValueLabel: {
-                            Text("0")
-                        } maximumValueLabel: {
-                            Text("10")
-                        }.frame(maxWidth: 250)
-                        
-                        Divider().padding(.vertical, 18)
-                        
-                        VStack(alignment: .leading) {
-                            Text("Rotate 180°")
-                            Grid() {
-                                GridRow() {
-                                    Toggle(isOn: .constant(false)) {
-                                        Text("Display 1")
-                                    }
-                                    Toggle(isOn: .constant(false)) {
-                                        Text("Display 2")
-                                    }
-                                }
-                                GridRow() {
-                                    Toggle(isOn: .constant(false)) {
-                                        Text("Display 3")
-                                    }
-                                    Toggle(isOn: .constant(false)) {
-                                        Text("Display 4")
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    OutputView()
                 }
             }.frame(maxHeight: .infinity).padding(8)
-        }.ignoresSafeArea(.container, edges: .top)
-    }
-    
-    @ViewBuilder
-    private func formGroup<Content: View>(
-        _ title: String,
-        icon: String,
-        maxWidth: CGFloat? = .infinity,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        GroupBox(label: Label(title, systemImage: icon).font(.headline)) {
-            VStack(alignment: .leading, content: content).frame(maxWidth: maxWidth).padding(8)
+        }.ignoresSafeArea(.container, edges: .top).task() {
+            state.fetchDevices()
         }
-    }
-    
-    @ViewBuilder
-    private func formLabel(_ label: String) -> some View {
-        Text(label).frame(minWidth: 80, alignment: .trailing)
     }
 }
 
