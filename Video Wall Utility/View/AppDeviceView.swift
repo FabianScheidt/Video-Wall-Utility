@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct DeviceView: View {
+struct AppDeviceView: View {
     @Binding var deviceState: AppDeviceState
     let connect: () -> Void
     let disconnect: () -> Void
@@ -62,7 +62,7 @@ struct DeviceView: View {
 
 
 #Preview {
-    DeviceView(
+    AppDeviceView(
         deviceState: .constant(AppDeviceState()),
         connect: {},
         disconnect: {},

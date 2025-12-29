@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct SystemView: View {
+struct AppSystemView: View {
     @Binding var systemState: AppSystemState
     let reboot: () -> Void
     let factoryReset: () -> Void
@@ -19,7 +19,7 @@ struct SystemView: View {
 }
 
 #Preview {
-    SystemView(
+    AppSystemView(
         systemState: .constant(AppSystemState()),
         reboot: {},
         factoryReset: {}
