@@ -18,13 +18,13 @@ func formLabel(_ label: String) -> some View {
 }
 
 @ViewBuilder
-func formEnumPicker<EnumType: Hashable & CaseIterable & WithLabel>(selection: Binding<EnumType?>, label: String) -> some View {
+func formEnumPicker<EnumType: Hashable & CaseIterable & CustomStringConvertible>(selection: Binding<EnumType?>, label: String) -> some View {
     Picker(selection: selection, label: formLabel(label)) {
         if selection.wrappedValue == nil {
             Text("").tag(nil as EnumType?)
         }
         ForEach(Array(EnumType.allCases), id: \.self) { value in
-            Text(value.label).tag(value)
+            Text(value.description).tag(value)
         }
     }.disabled(selection.wrappedValue == nil)
 }

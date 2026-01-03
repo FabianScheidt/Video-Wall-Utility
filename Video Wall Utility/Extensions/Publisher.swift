@@ -1,4 +1,5 @@
 internal import Combine
+import Foundation
 
 extension Publisher {
     /// Emits `(previous, current)` pairs

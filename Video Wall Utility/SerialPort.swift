@@ -83,6 +83,7 @@ class SerialPortConnection {
     }
     
     func sendLine(_ string: String) -> Bool {
+        logger.info("Sending line to serial device: \(string)")
         return send(string + "\r\n")
     }
     
@@ -174,6 +175,7 @@ class SerialPortConnection {
                 cont.resume(returning: s)
             } else {
                 DispatchQueue.main.async {
+                    self.logger.info("Received line from serial device: \(s)")
                     self.onLine?(s)
                 }
             }
