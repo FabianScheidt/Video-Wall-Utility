@@ -7,6 +7,7 @@ struct AppOutputState {
     var rotateDisplay2: Bool? = nil
     var rotateDisplay3: Bool? = nil
     var rotateDisplay4: Bool? = nil
+    var audioMuted: Bool? = nil
 }
 
 enum OutputMode: Int, Codable, CaseIterable, CustomStringConvertible {

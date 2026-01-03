@@ -24,6 +24,7 @@ class StateController: AppState, AbstractStateController {
     private let OUTPUT_BEZELH_REGEX = /^tv wall horizontal bezel\s*:\s*([0-9]+)$/
     private let OUTPUT_BEZELV_REGEX = /^tv wall vertical bezel\s*:\s*([0-9]+)$/
     private let OUTPUT_ROTATION_REGEX = /^output\s*([1-4])\s*:\s*(0°|180°) rotation$/
+    private let OUTPUT_AUDIO_MUTED_REGEX = /^output audio mute\s*:\s*(on|off)$/
     
     private var connection: SerialPortConnection? = nil
     private var cancellables = Set<AnyCancellable>()
@@ -128,6 +129,14 @@ class StateController: AppState, AbstractStateController {
                 self.connection?.sendLine("s output 4 rotate \(new ? 1 : 0)!")
             }
             .store(in: &cancellables)
+    
+        $output
+            .changes(of: \.audioMuted)
+            .sink { old, new in
+                self.logger.info("Audio Muted changed: \(old) → \(new)")
+                self.connection?.sendLine("s output audio mute \(new ? 1 : 0)!")
+            }
+            .store(in: &cancellables)
     }
     
     func fetchDevices() async {
@@ -223,6 +232,10 @@ class StateController: AppState, AbstractStateController {
             case "4": self.output.rotateDisplay4 = match.output.2 == "180°"
             default: break
             }
+        }
+        
+        if let match = line.wholeMatch(of: OUTPUT_AUDIO_MUTED_REGEX) {
+            self.output.audioMuted = match.output.1 == "on"
         }
     }
     

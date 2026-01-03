@@ -55,6 +55,10 @@ class StateControllerMock: AppState, AbstractStateController {
         $output.changes(of: \.rotateDisplay4)
             .sink { old, new in print("Rotate Display 4 changed: \(old) → \(new)") }
             .store(in: &cancellables)
+        
+        $output.changes(of: \.audioMuted)
+            .sink { old, new in print("Audio Muted changed: \(old) → \(new)") }
+            .store(in: &cancellables)
     }
     
     func fetchDevices() {
@@ -95,6 +99,8 @@ class StateControllerMock: AppState, AbstractStateController {
         self.output.rotateDisplay3 = true
         try? await Task.sleep(nanoseconds: 200_000_000)
         self.output.rotateDisplay4 = false
+        try? await Task.sleep(nanoseconds: 200_000_000)
+        self.output.audioMuted = false
     }
     
     func disconnect() async {

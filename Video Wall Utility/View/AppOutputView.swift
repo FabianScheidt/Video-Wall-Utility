@@ -7,24 +7,33 @@ struct AppOutputView: View {
         formGroup("Output", icon: "display.2") {
             formEnumPicker(selection: $outputState.mode, label: "Mode")
             formEnumPicker(selection: $outputState.resolution, label: "Resolution")
-            bezelSlider(value: $outputState.bezelHorizontal, label: "Bezel H")
-            bezelSlider(value: $outputState.bezelVertical, label: "Bezel V")
             
-            Divider().padding(.vertical, 18)
+            VStack() {
+                bezelSlider(value: $outputState.bezelHorizontal, label: "Bezel H")
+                bezelSlider(value: $outputState.bezelVertical, label: "Bezel V")
+            }.padding(.top, 12)
             
-            VStack(alignment: .leading) {
-                Text("Rotate 180°")
-                Grid() {
-                    GridRow() {
-                        formToggle(isOn: $outputState.rotateDisplay1, label: "Display 1")
-                        formToggle(isOn: $outputState.rotateDisplay2, label: "Display 2")
-                    }
-                    GridRow() {
-                        formToggle(isOn: $outputState.rotateDisplay3, label: "Display 3")
-                        formToggle(isOn: $outputState.rotateDisplay4, label: "Display 4")
+            HStack() {
+                formLabel("Rotate 180°")
+                
+                VStack(alignment: .leading) {
+                    Grid() {
+                        GridRow() {
+                            formToggle(isOn: $outputState.rotateDisplay1, label: "Display 1")
+                            formToggle(isOn: $outputState.rotateDisplay2, label: "Display 2")
+                        }
+                        GridRow() {
+                            formToggle(isOn: $outputState.rotateDisplay3, label: "Display 3")
+                            formToggle(isOn: $outputState.rotateDisplay4, label: "Display 4")
+                        }
                     }
                 }
-            }
+            }.padding(.vertical, 12)
+            
+            HStack() {
+                formLabel("Audio")
+                formToggle(isOn: $outputState.audioMuted, label: "Muted")
+            }.padding(.bottom, 6)
         }
     }
     
