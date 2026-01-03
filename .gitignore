@@ -11,3 +11,6 @@ xcuserdata/
 
 # Swift Package Manager
 .build/
+
+# Build output
+/build
