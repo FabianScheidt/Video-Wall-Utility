@@ -1,8 +1,13 @@
-name: Build macOS App
+name: macOS Build & Release
 
 on:
   push:
     branches: [main]
+    tags: [v*]
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -30,3 +35,10 @@ jobs:
         with:
           name: Video-Wall-Utility-macOS
           path: build/Build/Products/Release/Video Wall Utility.zip
+
+      - name: Create GitHub Release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/Build/Products/Release/Video Wall Utility.zip
+          generate_release_notes: true
