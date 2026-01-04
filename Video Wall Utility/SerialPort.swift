@@ -1,6 +1,7 @@
 import IOKit.serial
 import Foundation
 import OSLog
+internal import Combine
 
 
 struct SerialPortHelper {
@@ -28,20 +29,49 @@ struct SerialPortHelper {
 
 class SerialPortConnection {
     private var fd: Int32 = -1
-    private let logger = Logger()
+    private let encoding: String.Encoding
+    private let lineDelimiter: Data
+    private let logger: Logger
     
     private var readSource: DispatchSourceRead?
-    private var buffer = Data()
     
-    // callback for ongoing streaming
-    var onLine: ((String) -> Void)?
+    private let dataSubject = PassthroughSubject<Data, Never>()
+    public let data: AnyPublisher<Data, Never>
+    public let lines: AnyPublisher<String, Never>
     
-    // awaiting consumer
-    private var pendingContinuation: CheckedContinuation<String, Error>?
-    
-    enum ReadError: Error {
-        case closed
-        case timeout
+    init(
+        encoding: String.Encoding = .gb18030,
+        lineDelimiter: Data = Data([0x0D, 0x0A]), // \r\n
+        logger: Logger = Logger()
+    ) {
+        self.encoding = encoding
+        self.lineDelimiter = lineDelimiter
+        self.logger = logger
+        self.data = self.dataSubject.eraseToAnyPublisher()
+        self.lines = self.data
+            .scan((remainder: Data(), lines: [String]())) { state, newData in
+                var buffer = state.remainder
+                buffer.append(newData)
+                
+                var lines: [String] = []
+                while let range = buffer.range(of: lineDelimiter) {
+                    let lineData = buffer.subdata(in: buffer.startIndex..<range.lowerBound)
+                    buffer.removeSubrange(buffer.startIndex..<range.upperBound)
+
+                    if let line = String(data: lineData, encoding: encoding) {
+                        logger.info("Received line from serial device: \(line)")
+                        lines.append(line)
+                    } else {
+                        logger.info("Received line that could not be decoded.")
+                    }
+                }
+
+                return (remainder: buffer, lines: lines)
+            }
+            .flatMap { state in
+                Publishers.Sequence(sequence: state.lines)
+            }
+            .eraseToAnyPublisher()
     }
 
     func open(portPath: String) -> Bool {
@@ -71,51 +101,28 @@ class SerialPortConnection {
     func close() {
         readSource?.cancel()
         readSource = nil
-        buffer.removeAll()
         
         if fd != -1 {
             Darwin.close(fd)
         }
         fd = -1
-        
-        pendingContinuation?.resume(throwing: ReadError.closed)
-        pendingContinuation = nil
     }
     
     func sendLine(_ string: String) -> Bool {
         logger.info("Sending line to serial device: \(string)")
-        return send(string + "\r\n")
-    }
-    
-    func send(_ string: String) -> Bool {
-        guard fd != -1 else { return false }
-        guard let data = string.data(using: .gb18030) else {
+        guard let data = string.data(using: self.encoding) else {
             return false
         }
+        return send(data + self.lineDelimiter)
+    }
+    
+    func send(_ data: Data) -> Bool {
+        guard fd != -1 else { return false }
+        
         let written = data.withUnsafeBytes { ptr in
             write(fd, ptr.baseAddress, data.count)
         }
         return written == data.count
-    }
-
-    func readLine(timeout: TimeInterval? = nil) async throws -> String? {
-        if let data = popNextLineData() {
-            return decodeLine(data)
-        }
-
-        return try await withCheckedThrowingContinuation { (cont: CheckedContinuation<String, Error>) in
-            pendingContinuation = cont
-            
-            if let t = timeout {
-                Task {
-                    try? await Task.sleep(nanoseconds: UInt64(t * 1_000_000_000))
-                    if self.pendingContinuation != nil {
-                        self.pendingContinuation?.resume(throwing: ReadError.timeout)
-                        self.pendingContinuation = nil
-                    }
-                }
-            }
-        }
     }
 
     private func startReader() {
@@ -131,54 +138,12 @@ class SerialPortConnection {
             let n = read(self.fd, &temp, temp.count)
 
             if n > 0 {
-                self.buffer.append(contentsOf: temp[0..<n])
-                self.processBuffer()
+                DispatchQueue.main.async {
+                    self.dataSubject.send(Data(temp[0..<n]))
+                }
             }
         }
 
         src.resume()
-    }
-    
-    private func popNextLineData() -> Data? {
-        // look for '\n'
-        guard let idx = buffer.firstIndex(of: 10 /* \n */) else {
-            return nil
-        }
-
-        var line = buffer[..<idx]
-        buffer.removeSubrange(...idx)
-
-        // strip '\r'
-        if line.last == 13 /* \r */ {
-            line = line.dropLast()
-        }
-
-        return Data(line)
-    }
-
-    private func decodeLine(_ data: Data) -> String? {
-        if let s = String(data: data, encoding: .gb18030) {
-            return s
-        }
-
-        logger.error("Received line that could not be decoded.")
-        return nil
-    }
-
-
-    private func processBuffer() {
-        while let data = popNextLineData() {
-            guard let s = decodeLine(data) else { continue }
-
-            if let cont = pendingContinuation {
-                pendingContinuation = nil
-                cont.resume(returning: s)
-            } else {
-                DispatchQueue.main.async {
-                    self.logger.info("Received line from serial device: \(s)")
-                    self.onLine?(s)
-                }
-            }
-        }
     }
 }

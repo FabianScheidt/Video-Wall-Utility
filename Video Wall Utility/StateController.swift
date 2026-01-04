@@ -36,7 +36,7 @@ class StateController: AppState, AbstractStateController {
             .changes(of: \.source)
             .sink { old, new in
                 self.logger.info("Source changed: \(old) → \(new)")
-                self.connection?.sendLine("s output in source \(new.rawValue)!")
+                _ = self.connection?.sendLine("s output in source \(new.rawValue)!")
             }
             .store(in: &cancellables)
 
@@ -44,7 +44,7 @@ class StateController: AppState, AbstractStateController {
             .changes(of: \.edidHdmi)
             .sink { old, new in
                 self.logger.info("EDID HDMI changed: \(old) → \(new)")
-                self.connection?.sendLine("s input 1 edid \(new.rawValue)!")
+                _ = self.connection?.sendLine("s input 1 edid \(new.rawValue)!")
             }
             .store(in: &cancellables)
         
@@ -52,7 +52,7 @@ class StateController: AppState, AbstractStateController {
             .changes(of: \.edidUsbc)
             .sink { old, new in
                 self.logger.info("EDID USB-C changed: \(old) → \(new)")
-                self.connection?.sendLine("s input 2 edid \(new.rawValue)!")
+                _ = self.connection?.sendLine("s input 2 edid \(new.rawValue)!")
             }
             .store(in: &cancellables)
         
@@ -60,7 +60,7 @@ class StateController: AppState, AbstractStateController {
             .changes(of: \.power)
             .sink { old, new in
                 self.logger.info("Power changed: \(old) → \(new)")
-                self.connection?.sendLine("s power \(new ? 1 : 0)!")
+                _ = self.connection?.sendLine("s power \(new ? 1 : 0)!")
             }
             .store(in: &cancellables)
         
@@ -68,7 +68,7 @@ class StateController: AppState, AbstractStateController {
             .changes(of: \.mode)
             .sink { old, new in
                 self.logger.info("Mode changed: \(old) → \(new)")
-                self.connection?.sendLine("s tw mode \(new.rawValue)!")
+                _ = self.connection?.sendLine("s tw mode \(new.rawValue)!")
             }
             .store(in: &cancellables)
         
@@ -76,7 +76,7 @@ class StateController: AppState, AbstractStateController {
             .changes(of: \.resolution)
             .sink { old, new in
                 self.logger.info("Resolution changed: \(old) → \(new)")
-                self.connection?.sendLine("s tw res \(new.rawValue)!")
+                _ = self.connection?.sendLine("s tw res \(new.rawValue)!")
             }
             .store(in: &cancellables)
         
@@ -85,7 +85,7 @@ class StateController: AppState, AbstractStateController {
             .changes(of: \.bezelHorizontal)
             .sink { old, new in
                 self.logger.info("Bezel H changed: \(old) → \(new)")
-                self.connection?.sendLine("s tw h bezel \(new)!")
+                _ = self.connection?.sendLine("s tw h bezel \(new)!")
             }
             .store(in: &cancellables)
         
@@ -94,7 +94,7 @@ class StateController: AppState, AbstractStateController {
             .changes(of: \.bezelVertical)
             .sink { old, new in
                 self.logger.info("Bezel V changed: \(old) → \(new)")
-                self.connection?.sendLine("s tw v bezel \(new)!")
+                _ = self.connection?.sendLine("s tw v bezel \(new)!")
             }
             .store(in: &cancellables)
         
@@ -102,7 +102,7 @@ class StateController: AppState, AbstractStateController {
             .changes(of: \.rotateDisplay1)
             .sink { old, new in
                 self.logger.info("Rotate Display 1 changed: \(old) → \(new)")
-                self.connection?.sendLine("s output 1 rotate \(new ? 1 : 0)!")
+                _ = self.connection?.sendLine("s output 1 rotate \(new ? 1 : 0)!")
             }
             .store(in: &cancellables)
         
@@ -110,7 +110,7 @@ class StateController: AppState, AbstractStateController {
             .changes(of: \.rotateDisplay2)
             .sink { old, new in
                 self.logger.info("Rotate Display 2 changed: \(old) → \(new)")
-                self.connection?.sendLine("s output 2 rotate \(new ? 1 : 0)!")
+                _ = self.connection?.sendLine("s output 2 rotate \(new ? 1 : 0)!")
             }
             .store(in: &cancellables)
         
@@ -118,7 +118,7 @@ class StateController: AppState, AbstractStateController {
             .changes(of: \.rotateDisplay3)
             .sink { old, new in
                 self.logger.info("Rotate Display 3 changed: \(old) → \(new)")
-                self.connection?.sendLine("s output 3 rotate \(new ? 1 : 0)!")
+                _ = self.connection?.sendLine("s output 3 rotate \(new ? 1 : 0)!")
             }
             .store(in: &cancellables)
         
@@ -126,7 +126,7 @@ class StateController: AppState, AbstractStateController {
             .changes(of: \.rotateDisplay4)
             .sink { old, new in
                 self.logger.info("Rotate Display 4 changed: \(old) → \(new)")
-                self.connection?.sendLine("s output 4 rotate \(new ? 1 : 0)!")
+                _ = self.connection?.sendLine("s output 4 rotate \(new ? 1 : 0)!")
             }
             .store(in: &cancellables)
     
@@ -134,7 +134,7 @@ class StateController: AppState, AbstractStateController {
             .changes(of: \.audioMuted)
             .sink { old, new in
                 self.logger.info("Audio Muted changed: \(old) → \(new)")
-                self.connection?.sendLine("s output audio mute \(new ? 1 : 0)!")
+                _ = self.connection?.sendLine("s output audio mute \(new ? 1 : 0)!")
             }
             .store(in: &cancellables)
     }
@@ -162,7 +162,9 @@ class StateController: AppState, AbstractStateController {
         }
         
         // Wait for a firmware version response
-        let response = try? await conn.readLine(timeout: 1)
+        let response = await conn.lines
+            .timeout(.seconds(1), scheduler: RunLoop.main)
+            .values.first(where: { _ in true })
         guard response?.wholeMatch(of: FIRMWARE_VERSION_REGEX) != nil else {
             logger.error("Invalid firmware response: \(response ?? "")")
             await self.disconnect()
@@ -170,15 +172,17 @@ class StateController: AppState, AbstractStateController {
         }
          
         // We're now connected to a valid device. Start listening
+        conn.lines
+            .sink(receiveValue: { line in self.processLine(line)})
+            .store(in: &cancellables)
         self.connection = conn
-        self.connection?.onLine = self.processLine
         self.device.status = .connected
         
         // Query all parameters
         await self.refresh()
     }
     
-    private func processLine(line: String) {
+    private func processLine(_ line: String) {
         if (line.wholeMatch(of: INIT_FINISHED_REGEX) != nil) || (line.wholeMatch(of: INVALID_ADJUSTMENT_REGEX) != nil) {
             Task {
                 self.resetState()
@@ -285,11 +289,11 @@ class StateController: AppState, AbstractStateController {
     
     func reboot() async {
         self.resetState()
-        self.connection?.sendLine("s reboot!")
+        _ = self.connection?.sendLine("s reboot!")
     }
     
     func factoryReset() async {
         self.resetState()
-        self.connection?.sendLine("s reset!")
+        _ = self.connection?.sendLine("s reset!")
     }
 }
